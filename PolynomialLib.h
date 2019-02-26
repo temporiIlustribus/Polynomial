@@ -10,7 +10,7 @@
 //                        __/ |                                
 //                       |___/                                 
 
-// Simple Polynomial Template class mainly for integer coefficient Polynomials.
+// Simple Polynomial Template class.
 // Coefficients are stored in a dense format as a vector of T.
 //
 // Functionality:
@@ -25,35 +25,36 @@
 //
 
 #include <iostream>
+#include <iterator>
 #include <vector>
 
 using namespace std;
 
 namespace Polynomial {
-    template<typename T>
+    template <typename T>
     class Polynomial {
     private:
         //////////////////////////
         //         DATA         //
         //////////////////////////
 
-        std::vector<T> coeficients;
+        std::vector<T> coefficients;
 
         //////////////////////////
         //  Internal functions  //
         //////////////////////////
 
-        // Removes not needed leading zero coeficients
+        // Removes not needed leading zero coefficients
         void removeLeadingZeroes() {
             size_t i = 1;
-            for (; i <= coeficients.size(); ++i) {
-                if (coeficients[coeficients.size() - i] != T(0))
+            for (; i <= coefficients.size(); ++i) {
+                if (coefficients[coefficients.size() - i] != T(0))
                     break;
             }
             --i;
-            if (coeficients.size() - i < coeficients.size() && coeficients.size() - i >= 0) {
-                coeficients.resize(coeficients.size() - i);
-                coeficients.shrink_to_fit();
+            if (coefficients.size() - i < coefficients.size() && coefficients.size() - i >= 0) {
+                coefficients.resize(coefficients.size() - i);
+                coefficients.shrink_to_fit();
             }
         }
 
@@ -61,13 +62,13 @@ namespace Polynomial {
         // Sign = 0 is "+="; Sign = 1 is "-="
         void Add(const Polynomial<T>& other, bool sign) {
 
-            if (coeficients.size() < other.coeficients.size())
-                coeficients.resize(other.coeficients.size());
-            for (size_t i = 0; i < other.coeficients.size(); ++i)
+            if (coefficients.size() < other.coefficients.size())
+                coefficients.resize(other.coefficients.size());
+            for (size_t i = 0; i < other.coefficients.size(); ++i)
                 if (sign)
-                    coeficients[i] -= other.coeficients[i];
+                    coefficients[i] -= other.coefficients[i];
                 else
-                    coeficients[i] += other.coeficients[i];
+                    coefficients[i] += other.coefficients[i];
             removeLeadingZeroes();
         }
 
@@ -79,13 +80,13 @@ namespace Polynomial {
                 return (*this);
             Polynomial<T> res;
             Polynomial<T> temp(*this);
-            res.coeficients.resize(size() + other.size() + 1);
+            res.coefficients.resize(size() + other.size() + 1);
             T coef;
             while (temp.size() >= other.size() && temp.size() > 0) {
                 coef = temp[temp.size() - 1] / other[other.size() - 1];
                 if (coef == T(0))
                     break;
-                res.coeficients[temp.size() - other.size()] = coef;
+                res.coefficients[temp.size() - other.size()] = coef;
                 temp -= coef * other.IncreaseVarPower(temp.size() - other.size());
             }
             res.removeLeadingZeroes();
@@ -93,45 +94,50 @@ namespace Polynomial {
         }
 
         // Main gcf function
-        Polynomial<T> gcd(const Polynomial<T>& lhs, const Polynomial<T>& rhs) const {
-            if (rhs == T(0))
-                return lhs;
-            return gcd(rhs, lhs % rhs);
+        Polynomial<T> gcd(Polynomial<T> lhs, Polynomial<T> rhs) const {
+            Polynomial<T> r;
+            while (rhs != T(0)) {
+                r = lhs % rhs;
+                lhs = rhs;
+                rhs = r;
+            }
+            return lhs;
         }
 
     public:
+
         //
         // Constructors
         //
 
-        Polynomial<T>() : coeficients() {}
-        Polynomial<T>(const vector<T>& coef) : coeficients(coef) {
+        Polynomial<T>() : coefficients() {}
+        Polynomial<T>(const T& coef) : coefficients(1) {
+            coefficients[0] = coef;
             removeLeadingZeroes();
         }
-        Polynomial<T>(const T& coef) : coeficients(1) {
-            coeficients[0] = coef;
-            removeLeadingZeroes();
-        }
-        template<class It>
-        Polynomial<T>(It first, It last) {
+        template <typename Iter>
+        Polynomial<T>(Iter first, Iter last) {
             while (first != last) {
-                coeficients.push_back(T(*first));
+                coefficients.push_back(T(*first));
                 ++first;
             }
             removeLeadingZeroes();
         }
+        Polynomial<T>(const vector<T>& coef) : coefficients(coef) {
+            removeLeadingZeroes();
+        }
+        Polynomial<T>(const Polynomial<T>& other) : coefficients(other.coefficients) {}
 
         //
         // Size
         //
 
-        Polynomial<T>(const Polynomial<T>& other) : coeficients(other.coeficients) {}
         int Degree() const {
-            return coeficients.size() - 1;
+            return coefficients.size() - 1;
         }
 
         size_t size() const {
-            return coeficients.size();
+            return coefficients.size();
         }
 
         //
@@ -140,17 +146,17 @@ namespace Polynomial {
 
         T operator[] (size_t i) const {
             T res = T(0);
-            if (i < coeficients.size())
-                res = coeficients[i];
+            if (i < coefficients.size())
+                res = coefficients[i];
             return res;
         }
 
         vector<T>& GetCoef() {
-            return coeficients;
+            return coefficients;
         }
 
         vector<T> GetCoef() const {
-            return coeficients;
+            return coefficients;
         }
 
         //
@@ -158,26 +164,27 @@ namespace Polynomial {
         //
 
         auto begin() {
-            return coeficients.begin();
+            return coefficients.begin();
         }
 
         auto end() {
-            return coeficients.end();
+            return coefficients.end();
         }
 
         auto begin() const {
-            return coeficients.cbegin();
+            return coefficients.cbegin();
         }
 
         auto end() const {
-            return coeficients.cend();
+            return coefficients.cend();
         }
 
         //
         // Math operations
         //
 
-        //      Add / Substract
+        // Add / Substract
+
         Polynomial<T>& operator += (const Polynomial<T>& other) {
             Add(other, false);
             removeLeadingZeroes();
@@ -204,19 +211,20 @@ namespace Polynomial {
         }
 
         // Scalar version
+
         Polynomial<T>& operator += (const T& other) {
-            if (coeficients.size())
-                coeficients[0] += other;
+            if (coefficients.size())
+                coefficients[0] += other;
             else
-                coeficients.push_back(other);
+                coefficients.push_back(other);
             removeLeadingZeroes();
             return *this;
         }
 
         Polynomial<T>& operator -= (const T& other) {
-            if (!coeficients.size())
-                coeficients.push_back(T(0));
-            coeficients[0] -= other;
+            if (!coefficients.size())
+                coefficients.push_back(T(0));
+            coefficients[0] -= other;
             removeLeadingZeroes();
             return *this;
         }
@@ -243,15 +251,16 @@ namespace Polynomial {
             return temp;
         }
 
-        //      Multiply
+        // Multiplication
+
         Polynomial<T>& operator *= (const Polynomial<T>& other) {
             Polynomial<T> temp(*this);
-            std::fill(coeficients.begin(), coeficients.end(), T(0));
-            if (coeficients.size() + other.coeficients.size() >= 1)
-                coeficients.resize(coeficients.size() + other.coeficients.size() - 1);
-            for (size_t i = 0; i < temp.coeficients.size(); ++i) {
-                for (size_t j = 0; j < other.coeficients.size(); ++j) {
-                    coeficients[i + j] += temp.coeficients[i] * other.coeficients[j];
+            std::fill(coefficients.begin(), coefficients.end(), T(0));
+            if (coefficients.size() + other.coefficients.size() >= 1)
+                coefficients.resize(coefficients.size() + other.coefficients.size() - 1);
+            for (size_t i = 0; i < temp.coefficients.size(); ++i) {
+                for (size_t j = 0; j < other.coefficients.size(); ++j) {
+                    coefficients[i + j] += temp.coefficients[i] * other.coefficients[j];
                 }
             }
             removeLeadingZeroes();
@@ -260,11 +269,11 @@ namespace Polynomial {
 
         Polynomial<T> operator * (const Polynomial<T>& other) const {
             Polynomial<T> temp;
-            if (coeficients.size() + other.coeficients.size() >= 1)
-                temp.coeficients.resize(coeficients.size() + other.coeficients.size() - 1);
-            for (size_t i = 0; i < coeficients.size(); ++i) {
-                for (size_t j = 0; j < other.coeficients.size(); ++j) {
-                    temp.coeficients[i + j] += coeficients[i] * other.coeficients[j];
+            if (coefficients.size() + other.coefficients.size() >= 1)
+                temp.coefficients.resize(coefficients.size() + other.coefficients.size() - 1);
+            for (size_t i = 0; i < coefficients.size(); ++i) {
+                for (size_t j = 0; j < other.coefficients.size(); ++j) {
+                    temp.coefficients[i + j] += coefficients[i] * other.coefficients[j];
                 }
             }
             temp.removeLeadingZeroes();
@@ -272,13 +281,14 @@ namespace Polynomial {
         }
 
         // Scalar version
+
         Polynomial<T>& operator *= (const T& other) {
             if (other == T(0)) {
-                coeficients.resize(0);
-                coeficients.shrink_to_fit();
+                coefficients.resize(0);
+                coefficients.shrink_to_fit();
             } else {
-                for (size_t i = 0; i < coeficients.size(); ++i)
-                    coeficients[i] *= other;
+                for (size_t i = 0; i < coefficients.size(); ++i)
+                    coefficients[i] *= other;
             }
             removeLeadingZeroes();
             return *this;
@@ -288,19 +298,23 @@ namespace Polynomial {
             Polynomial<T> temp(*this);
             return (temp *= other);
         }
+
         friend Polynomial<T> operator * (const T& other, const Polynomial<T>& pol) {
             Polynomial<T> temp(other);
             return (temp *= pol);
         }
+
         //
         // Division
         //
+
+        // Equivalent to multiplying Polynomial by x^power;
         Polynomial<T> IncreaseVarPower(size_t power) const {
             Polynomial<T> temp(T(0));
-            temp.coeficients.resize(size() + power + 1);
+            temp.coefficients.resize(size() + power + 1);
             for (size_t i = 0; i < size(); ++i) {
-                if (coeficients[i] != T(0))
-                    temp.coeficients[i + power] = coeficients[i];
+                if (coefficients[i] != T(0))
+                    temp.coefficients[i + power] = coefficients[i];
             }
             temp.removeLeadingZeroes();
             return temp;
@@ -315,7 +329,7 @@ namespace Polynomial {
             return Div(other);
         }
         Polynomial<T>& operator /= (const T& other) {
-            for (T& el : coeficients)
+            for (T& el : coefficients)
                 el /= other;
             removeLeadingZeroes();
             return *this;
@@ -328,6 +342,7 @@ namespace Polynomial {
         //
         // Mod
         //
+
         Polynomial<T> operator % (const Polynomial<T>& other) const {
             return (*this - Div(other) * other);
         }
@@ -336,44 +351,69 @@ namespace Polynomial {
         // Calculate value at given point
         //
 
+        // Returns value of the Polynomial with variable x = val;
         T operator() (const T& val) const {
             T res = T(0);
             T temp = T(1);
-            for (size_t i = 0; i < coeficients.size(); ++i) {
-                res += temp * coeficients[i];
+            for (size_t i = 0; i < coefficients.size(); ++i) {
+                res += temp * coefficients[i];
                 temp *= val;
             }
             return res;
         }
 
         //
-        // gcd
+        // gcf
         //
 
+        // GCF of two Polynomials [recommended synthax : (a, b)]
         Polynomial<T> operator , (const Polynomial<T>& other) const {
             Polynomial<T> res = gcd(*this, other);
             res.removeLeadingZeroes();
             if (res.size() > 0) {
-                for (T& coef : res.coeficients)
-                    coef /= res.coeficients[res.size() - 1];
+                for (T& coef : res.coefficients)
+                    coef /= res.coefficients[res.size() - 1];
             }
             return res;
+        }
+
+        /* Version of GCF for Polynomials with float coeffitients.
+        Precision controls how close a value has to be to zero in the GCF algorithm */
+        Polynomial<T> GCF(const Polynomial<T>& other, const T& precision) const {
+            Polynomial<T> lhs(*this);
+            {
+                Polynomial<T> rhs(other);
+                Polynomial<T> r;
+                while (rhs != T(0)) {
+                    r = lhs % rhs;
+                    lhs = rhs;
+                    rhs = r;
+                    if ((rhs - T(0)).size() == 1 && abs(rhs[rhs.size() - 1]) <= precision)
+                        break;
+                }
+            }
+            lhs.removeLeadingZeroes();
+            if (lhs.size() > 0) {
+                for (T& coef : lhs.coefficients)
+                    coef /= lhs.coefficients[lhs.size() - 1];
+            }
+            return lhs;
         }
 
         //
         // Composition
         //
 
-        template<typename Z>
+        template <typename Z>
         friend Polynomial<Z> operator & (const Polynomial<Z>& lhs, const Polynomial<Z>& rhs);
 
         //
         // Equality
         //
 
-        template<typename Z>
+        template <typename Z>
         friend bool operator == (const Polynomial<Z>& lhs, const Polynomial<Z>& rhs);
-        template<typename Z>
+        template <typename Z>
         friend bool operator != (const Polynomial<Z>& lhs, const Polynomial<Z>& rhs);
     };
 
@@ -381,7 +421,7 @@ namespace Polynomial {
     // Writing to ostream
     //
 
-    template<typename T>
+    template <typename T>
     std::ostream& operator << (std::ostream& out, const Polynomial<T>& pol) {
         if (pol.size()) {
             for (size_t i = 1; i <= pol.size(); ++i) {
@@ -411,34 +451,35 @@ namespace Polynomial {
         }
         return out;
     }
-    template<typename T>
+    template <typename T>
+    // Returns the composition of lhs and rhs Polynomials
     Polynomial<T> operator & (const Polynomial<T>& lhs, const Polynomial<T>& rhs) {
         T initializer = T(0);
-        if (lhs.coeficients.size() > 0)
-            initializer = lhs.coeficients[0];
+        if (lhs.coefficients.size() > 0)
+            initializer = lhs.coefficients[0];
         Polynomial<T> res(initializer);
         Polynomial<T> temp(T(1));
-        res.coeficients.resize((lhs.coeficients.size() - 1) * (rhs.coeficients.size() - 1) + 1);
-        for (size_t i = 1; i != lhs.coeficients.size(); ++i) {
-            temp *= rhs.coeficients;  // raise to the i-th power
-            res += lhs.coeficients[i] * temp;
+        res.coefficients.resize((lhs.coefficients.size() - 1) * (rhs.coefficients.size() - 1) + 1);
+        for (size_t i = 1; i != lhs.coefficients.size(); ++i) {
+            temp *= rhs.coefficients;  // raise to the i-th power
+            res += lhs.coefficients[i] * temp;
         }
         res.removeLeadingZeroes();
         return res;
     }
-    template<typename T>
+    template <typename T>
     bool operator == (const Polynomial<T>& lhs, const Polynomial<T>& rhs) {
-        return (lhs.coeficients == rhs.coeficients);
+        return (lhs.coefficients == rhs.coefficients);
     }
-    template<typename T>
+    template <typename T>
     bool operator != (const Polynomial<T>& lhs, const Polynomial<T>& rhs) {
-        return (lhs.coeficients != rhs.coeficients);
+        return (lhs.coefficients != rhs.coefficients);
     }
-    template<typename T>
+    template <typename T>
     bool operator == (const Polynomial<T>& lhs, const T& rhs) {
         return ((lhs.size() == 1 && lhs[0] == rhs) || (lhs.size() == 0 && rhs == T(0)));
     }
-    template<typename T>
+    template <typename T>
     bool operator != (const Polynomial<T>& lhs, const T& rhs) {
         return (lhs == rhs);
     }
@@ -449,7 +490,7 @@ namespace Polynomial {
 
 
 
-//  Version 0.2.1
+//  Version 0.2.2
 //  (C) TechnoVirus / temporIllustribus, February 2019
 
 //                                             
