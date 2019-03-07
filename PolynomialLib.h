@@ -10,8 +10,9 @@
 //                        __/ |                                
 //                       |___/                                 
 
-// Simple Polynomial Template class mainly for integer coefficient Polynomials.
-// Coefficients are stored in a dense format as a vector of T.
+// Simple Polynomial Template classes mainly for integer coefficient Polynomials.
+// Coefficients are stored in a dense format in Polynomial<T> as a vector of T and in a sparse
+// format in the PolynomialSparse<T> as a map<size_t, T>.
 //
 // Functionality:
 // - constructors: from single coeficient T, vector of coefficients or from first-last iterators.
@@ -26,10 +27,14 @@
 
 #include <iostream>
 #include <vector>
+#include <map>
 
 using namespace std;
 
 namespace Polynomial {
+    template<typename T>
+    class PolynomialSparse;
+
     template<typename T>
     class Polynomial {
     private:
@@ -119,6 +124,13 @@ namespace Polynomial {
                 ++first;
             }
             removeLeadingZeroes();
+        }
+
+        //
+        // Convert to Sparse
+        //
+        PolynomialSparse<T> toSparse() const {
+            return PolynomialSparse<T>(coeficients);
         }
 
         //
@@ -442,6 +454,379 @@ namespace Polynomial {
     bool operator != (const Polynomial<T>& lhs, const T& rhs) {
         return (lhs == rhs);
     }
+
+    template<typename T>
+    T pow(T val, size_t power, T one = T(1)) {
+        T res = one;
+        while (power) {
+            if (!(power & 1)) {
+                val *= T(val);
+                power >>= 1;
+            } else {
+                res *= val;
+                --power;
+            }
+        }
+        return res;
+    }
+
+    template <typename T>
+    class PolynomialSparse {
+    private:
+        std::map<size_t, T> coefficients;
+        // Removes not needed leading zero coefficients
+        void removeZeroes() {
+            auto it = coefficients.begin();
+            while (it != coefficients.end()) {
+                if (it->second == T(0)) {
+                    auto delIt = it;
+                    ++it;
+                    coefficients.erase(delIt);
+                } else {
+                    ++it;
+                }
+            }
+        }
+        // Main Add/Substract function
+        // Sign = 0 is "+="; Sign = 1 is "-="
+        void Add(const PolynomialSparse<T>& other, bool sign) {
+            for (auto el = other.coefficients.begin(); el != other.coefficients.end(); ++el) {
+                if (sign)
+                    coefficients[el->first] -= el->second;
+                else
+                    coefficients[el->first] += el->second;
+            }
+            removeZeroes();
+        }
+        // Main Division function
+        PolynomialSparse<T> Div(const PolynomialSparse<T>& other) const {
+            if (other.Degree() == 0)
+                return (*this / other[0]);
+            if (Degree() == -1)
+                return (*this);
+            vector<T> res(Degree() + other.Degree() + 2);
+            PolynomialSparse<T> temp(*this);
+            T coef;
+            while (temp.Degree() >= other.Degree() && temp.size() > 0) {
+                coef = temp.coefficients.rbegin()->second / other.coefficients.rbegin()->second;
+                if (coef == T(0))
+                    break;
+                res[temp.Degree() - other.Degree()] = coef;
+                temp -= coef * other.IncreaseVarPower(temp.Degree() - other.Degree());
+            }
+            return res;
+        }
+        // Main gcf function
+        PolynomialSparse<T> gcd(const PolynomialSparse<T>& lhs, const PolynomialSparse<T>& rhs) const {
+            if (rhs == T(0))
+                return lhs;
+            return gcd(rhs, lhs % rhs);
+        }
+
+    public:
+        //
+        // Constructors
+        //
+        PolynomialSparse<T>() : coefficients() {}
+        PolynomialSparse<T>(const T& coef) : coefficients() {
+            if (coef != T(0))
+                coefficients[0] = coef;
+        }
+        PolynomialSparse<T>(const vector<T>& coef) : coefficients() {
+            for (size_t i = 0; i < coef.size(); ++i)
+                if (coef[i] != T(0))
+                    coefficients[i] = coef[i];
+            removeZeroes();
+        }
+        PolynomialSparse<T>(const map<size_t, T>& coef) : coefficients(coef) {}
+        template <typename Iter>
+        PolynomialSparse<T>(Iter first, Iter last) {
+            size_t i = 0;
+            while (first != last) {
+                coefficients[i] = T(*first);
+                ++first;
+                ++i;
+            }
+            removeZeroes();
+        }
+        PolynomialSparse<T>(const PolynomialSparse<T>& other) : coefficients(other.coefficients) {}
+        //
+        // Polynomial Conversion
+        //
+        Polynomial<T> toDense() const {
+            vector<T> vec(Degree()+1);
+            for (auto it = coefficients.begin(); it != coefficients.end(); ++it) {
+                vec[it->first] = it->second;
+            }
+            return Polynomial<T>(vec);
+        }
+        //
+        // Size
+        //
+        int Degree() const {
+            if (coefficients.size())
+                return static_cast<int>(coefficients.rbegin()->first);
+            return -1;
+        }
+        size_t size() const {
+            return coefficients.size();
+        }
+        //
+        // Data access
+        //
+        T operator[] (size_t i) const {
+            if (coefficients.count(i))
+                return coefficients.at(i);
+            return T(0);
+        }
+        auto& GetCoef() {
+            return coefficients;
+        }
+        auto GetCoef() const {
+            return coefficients;
+        }
+        //
+        //  Iterators
+        //
+        auto begin() {
+            return coefficients.begin();
+        }
+        auto end() {
+            return coefficients.end();
+        }
+        auto begin() const {
+            return coefficients.cbegin();
+        }
+        auto end() const {
+            return coefficients.cend();
+        }
+        //
+        // Math operations
+        //
+        // Add / Substract
+        PolynomialSparse<T>& operator += (const PolynomialSparse<T>& other) {
+            Add(other, false);
+            removeZeroes();
+            return *this;
+        }
+        PolynomialSparse<T>& operator -= (const PolynomialSparse<T>& other) {
+            Add(other, true);
+            removeZeroes();
+            return *this;
+        }
+        PolynomialSparse<T> operator + (const PolynomialSparse<T>& other) const {
+            PolynomialSparse<T> temp(*this);
+            temp.Add(other, false);
+            return temp;
+        }
+        PolynomialSparse<T> operator - (const PolynomialSparse<T>& other) const {
+            PolynomialSparse<T> temp(*this);
+            temp.Add(other, true);
+            temp.removeZeroes();
+            return temp;
+        }
+        // Scalar version
+        PolynomialSparse<T>& operator += (const T& other) {
+            if (Degree() < 0)
+                coefficients[0] = T(0);
+            coefficients[0] += other;
+            removeZeroes();
+            return *this;
+        }
+        PolynomialSparse<T>& operator -= (const T& other) {
+            if (Degree() < 0)
+                coefficients[0] = T(0);
+            coefficients[0] -= other;
+            removeZeroes();
+            return *this;
+        }
+        PolynomialSparse<T> operator + (const T& other) const {
+            PolynomialSparse<T> temp(*this);
+            return (temp += other);
+        }
+        friend PolynomialSparse<T> operator + (const T& other, const PolynomialSparse<T>& pol) {
+            PolynomialSparse<T> temp(other);
+            temp += pol;
+            return temp;
+        }
+        PolynomialSparse<T> operator - (const T& other) const {
+            PolynomialSparse<T> temp(*this);
+            return temp -= other;
+        }
+        friend PolynomialSparse<T> operator - (const T& other, const PolynomialSparse<T>& pol) {
+            PolynomialSparse<T> temp(other);
+            temp -= pol;
+            return temp;
+        }
+        // Multiplication
+        PolynomialSparse<T>& operator *= (const PolynomialSparse<T>& other) {
+            PolynomialSparse<T> temp(*this);
+            coefficients.clear();
+            for (auto i = temp.coefficients.begin(); i != temp.coefficients.end(); ++i) {
+                for (auto j = other.coefficients.begin(); j != other.coefficients.end(); ++j) {
+                    coefficients[i->first + j->first] += (i->second) * (j->second);
+                }
+            }
+            removeZeroes();
+            return *this;
+        }
+        PolynomialSparse<T> operator * (const PolynomialSparse<T>& other) const {
+            PolynomialSparse<T> temp;
+            for (auto i = coefficients.begin(); i != coefficients.end(); ++i) {
+                for (auto j = other.coefficients.begin(); j != other.coefficients.end(); ++j) {
+                    temp.coefficients[i->first + j->first] += (i->second) * (j->second);
+                }
+            }
+            temp.removeZeroes();
+            return temp;
+        }
+        // Scalar version
+        PolynomialSparse<T>& operator *= (const T& other) {
+            if (other == T(0)) {
+                coefficients.clear();
+            } else {
+                for (auto it = coefficients.begin(); it != coefficients.end(); ++it)
+                    coefficients[it->first] *= other;
+            }
+            removeZeroes();
+            return *this;
+        }
+        PolynomialSparse<T> operator * (const T& other) const {
+            PolynomialSparse<T> temp(*this);
+            return (temp *= other);
+        }
+        friend PolynomialSparse<T> operator * (const T& other, const PolynomialSparse<T>& pol) {
+            PolynomialSparse<T> temp(other);
+            return (temp *= pol);
+        }
+        //
+        // Division
+        //
+        // Equivalent to multiplying Polynomial by x^power;
+        PolynomialSparse<T> IncreaseVarPower(size_t power) const {
+            PolynomialSparse<T> temp;
+            for (auto it = coefficients.begin(); it != coefficients.end(); ++it)
+                temp.coefficients[it->first + power] = it->second;
+            return temp;
+        }
+        PolynomialSparse<T>& operator /= (const PolynomialSparse<T>& other) {
+            *this = Div(other);
+            removeZeroes();
+            return *this;
+        }
+        PolynomialSparse<T> operator / (const PolynomialSparse<T>& other) const {
+            return Div(other);
+        }
+        PolynomialSparse<T>& operator /= (const T& other) {
+            for (auto it = coefficients.begin(); it != coefficients.end(); ++it)
+                it->second /= other;
+            removeZeroes();
+            return *this;
+        }
+        PolynomialSparse<T> operator / (const T& other) const {
+            PolynomialSparse<T> temp(*this);
+            return (temp /= other);
+        }
+        //
+        // Mod
+        //
+        PolynomialSparse<T> operator % (const PolynomialSparse<T>& other) const {
+            return (*this - Div(other) * other);
+        }
+        //
+        // Calculate value at given point
+        //
+        // Returns value of the Polynomial with variable x = val;
+        T operator() (const T& val) const {
+            T res = T(0);
+            for (auto it = coefficients.begin(); it != coefficients.end(); ++it) {
+                res += pow(val, it->first) * (it->second);
+            }
+            return res;
+        }
+
+        //
+        // gcf
+        //
+        // GCF of two Polynomials [recommended synthax : (a, b)]
+        PolynomialSparse<T> operator , (const PolynomialSparse<T>& other) const {
+            PolynomialSparse<T> res = gcd(*this, other);
+            res.removeZeroes();
+            if (res.Degree() > -1) {
+                for (auto it = res.coefficients.begin(); it != res.coefficients.end(); ++it)
+                    res.coefficients[it->first] /= res.coefficients.rbegin()->second;
+            }
+            return res;
+        }
+        //
+        // Composition
+        //
+        template <typename Z>
+        friend PolynomialSparse<Z> operator & (const PolynomialSparse<Z>& lhs, const PolynomialSparse<Z>& rhs);
+        //
+        // Equality
+        //
+        template <typename Z>
+        friend bool operator == (const PolynomialSparse<Z>& lhs, const PolynomialSparse<Z>& rhs);
+        template <typename Z>
+        friend bool operator != (const PolynomialSparse<Z>& lhs, const PolynomialSparse<Z>& rhs);
+        template <typename Z>
+        friend std::ostream& operator << (std::ostream& out, const PolynomialSparse<Z>& pol);
+    };
+    //
+    // Writing to ostream
+    //
+    template <typename T>
+    std::ostream& operator << (std::ostream& out, const PolynomialSparse<T>& pol) {
+        if (pol.size()) {
+            for (auto it = pol.coefficients.rbegin(); it != pol.coefficients.rend(); ++it) {
+                if (it != pol.coefficients.rbegin() && it->second > 0)
+                    out << "+";
+                if ((it->second != T(1) && it->second != T(-1) && it->first > 0) || it->first == 0) {
+                    out << it->second;
+                    if (it->first > 0)
+                        out << "*";
+                }
+                if (it->first > 0) {
+                    if (it->second != T(-1))
+                        out << "x";
+                    else
+                        out << "-x";
+                    if (it->first > 1)
+                        out << "^" << it->first;
+                }
+            }
+        } else {
+            out << T(0);
+        }
+        return out;
+    }
+    template <typename T>
+    // Returns the composition of lhs and rhs Polynomials
+    PolynomialSparse<T> operator & (const PolynomialSparse<T>& lhs, const PolynomialSparse<T>& rhs) {
+        PolynomialSparse<T> res(T(0));
+        for (auto it = lhs.coefficients.begin(); it != lhs.coefficients.end(); ++it) {
+            res += it->second * pow(rhs, it->first, PolynomialSparse<T>(T(1)));
+        }
+        res.removeZeroes();
+        return res;
+    }
+    template <typename T>
+    bool operator == (const PolynomialSparse<T>& lhs, const PolynomialSparse<T>& rhs) {
+        return (lhs.coefficients == rhs.coefficients);
+    }
+    template <typename T>
+    bool operator != (const PolynomialSparse<T>& lhs, const PolynomialSparse<T>& rhs) {
+        return (lhs.coefficients != rhs.coefficients);
+    }
+    template <typename T>
+    bool operator == (const PolynomialSparse<T>& lhs, const T& rhs) {
+        return ((lhs.Degree() == 0 && lhs[0] == rhs) || (lhs.Degree() == -1 && rhs == T(0)));
+    }
+    template <typename T>
+    bool operator != (const PolynomialSparse<T>& lhs, const T& rhs) {
+        return !(lhs == rhs);
+    }
 }
 
 
@@ -449,7 +834,7 @@ namespace Polynomial {
 
 
 
-//  Version 0.2.1
+//  Version 0.2.2
 //  (C) TechnoVirus / temporIllustribus, February 2019
 
 //                                             
